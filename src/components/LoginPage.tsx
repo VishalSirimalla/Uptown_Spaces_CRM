@@ -1,24 +1,30 @@
 import React from "react";
 import { Lock, Mail, Building2, ChevronRight, ShieldCheck, MapPin } from "lucide-react";
 import { motion } from "motion/react";
+import { api } from "../lib/api";
 
 interface LoginPageProps {
-  onLogin: () => void;
+  onLogin: (user: { name: string; email: string; role: string }) => void;
 }
 
 export default function LoginPage({ onLogin }: LoginPageProps) {
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [isLoading, setIsLoading] = React.useState(false);
+  const [isRegistering, setIsRegistering] = React.useState(false);
+  const [name, setName] = React.useState("");
+  const [error, setError] = React.useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
-    // Simulate authentication delay
-    setTimeout(() => {
-      setIsLoading(false);
-      onLogin();
-    }, 1200);
+    setError("");
+    try {
+      const response = isRegistering ? await api.register(name, email, password) : await api.login(email, password);
+      onLogin(response.user);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Authentication failed.");
+    } finally { setIsLoading(false); }
   };
 
   return (
@@ -154,7 +160,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
               <ShieldCheck className="w-4 h-4" />
               <span className="text-[10px] font-bold uppercase tracking-widest">Administrative Control Point</span>
             </div>
-            <h3 className="text-5xl font-serif font-bold tracking-tight">System Login</h3>
+            <h3 className="text-5xl font-serif font-bold tracking-tight">{isRegistering ? "Create Account" : "System Login"}</h3>
             <p className="text-sm text-[#f5f2ed]/40 font-medium leading-relaxed">
               Login to access the Navi Mumbai lead distribution terminal and portfolio analytics.
             </p>
@@ -162,6 +168,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
 
           <form onSubmit={handleSubmit} className="space-y-8">
             <div className="space-y-5">
+              {isRegistering && <motion.div whileHover={{ scale: 1.01 }} className="space-y-2 group"><label className="text-[10px] uppercase font-bold text-[#f5f2ed]/30 tracking-widest ml-1">Full Name</label><input required value={name} onChange={(e) => setName(e.target.value)} placeholder="Aarav Mehta" className="w-full bg-[#161616] border border-white/5 rounded-2xl py-5 px-5 text-sm font-medium outline-none focus:border-[#d4af37]/30" /></motion.div>}
               <motion.div 
                 whileHover={{ scale: 1.01 }}
                 className="space-y-2 group"
@@ -186,7 +193,6 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
               >
                 <div className="flex justify-between items-center px-1">
                   <label className="text-[10px] uppercase font-bold text-[#f5f2ed]/30 tracking-widest group-focus-within:text-[#d4af37] transition-colors">Access Key</label>
-                  <button type="button" className="text-[10px] uppercase font-bold text-[#d4af37]/40 hover:text-[#d4af37] hover:underline tracking-widest transition-colors">Recovery</button>
                 </div>
                 <div className="relative">
                   <Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#f5f2ed]/20 group-focus-within:text-[#d4af37] transition-colors" />
@@ -201,6 +207,8 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                 </div>
               </motion.div>
             </div>
+
+            {error && <p className="text-sm text-red-400" role="alert">{error}</p>}
 
             <motion.button 
               disabled={isLoading}
@@ -218,6 +226,10 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
               )}
             </motion.button>
           </form>
+
+          <button type="button" onClick={() => { setIsRegistering(!isRegistering); setError(""); }} className="w-full text-xs text-[#d4af37] hover:underline">
+            {isRegistering ? "Already have an account? Sign in" : "Need an account? Register"}
+          </button>
 
           <div className="pt-12 border-t border-white/5">
             <div className="flex items-center gap-4 mb-4">

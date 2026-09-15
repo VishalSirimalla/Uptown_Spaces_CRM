@@ -1,27 +1,12 @@
+import "dotenv/config";
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
+import app from "./api/app";
+import { connectDB } from "./api/db";
 
 async function startServer() {
-  const app = express();
-  const PORT = 3000;
-
-  app.use(express.json());
-
-  // API Routes (Simulated Primary Backend)
-  app.get("/api/health", (req, res) => {
-    res.json({ status: "ok", service: "Uptown CRM Backend" });
-  });
-
-  // Analytics Proxy/Implementation (Simulating FastAPI logic in Node for environment compatibility)
-  app.get("/api/analytics", (req, res) => {
-    // In a production environment, this could proxy to the FastAPI service
-    // For this build, we calculate metrics directly or serve mock summaries until DB is live
-    res.json({
-      message: "Analytics service is operational",
-      timestamp: Date.now()
-    });
-  });
+  const PORT = Number(process.env.PORT || 3002);
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
@@ -38,6 +23,7 @@ async function startServer() {
     });
   }
 
+  await connectDB().catch((error) => console.error("MongoDB unavailable:", error.message));
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`Uptown CRM running on http://localhost:${PORT}`);
   });

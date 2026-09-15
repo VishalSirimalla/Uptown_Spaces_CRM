@@ -5,6 +5,7 @@ import { PieChart as RechartsPie, Pie, Cell, ResponsiveContainer, BarChart, Bar,
 import { Lead, LeadStatus, PropertyType } from "../types";
 import { STATUS_OPTIONS, PROPERTY_TYPE_OPTIONS } from "../constants";
 import { cn } from "../lib/utils";
+import { api } from "../lib/api";
 
 interface DashboardProps {
   leads: Lead[];
@@ -16,6 +17,16 @@ export default function Dashboard({ leads }: DashboardProps) {
   const [statusFilter, setStatusFilter] = React.useState<string>("All");
   const [propertyFilter, setPropertyFilter] = React.useState<string>("All");
   const [showFilters, setShowFilters] = React.useState(false);
+  const [analytics, setAnalytics] = React.useState<Record<string, unknown> | null>(null);
+  const [analyticsError, setAnalyticsError] = React.useState("");
+
+  React.useEffect(() => {
+    setAnalyticsError("");
+    void api.analytics().then(setAnalytics).catch((error) => {
+      setAnalytics(null);
+      setAnalyticsError(error instanceof Error ? error.message : "Could not load dashboard analytics.");
+    });
+  }, [leads]);
 
   const filteredLeads = React.useMemo(() => {
     const now = Date.now();
@@ -29,8 +40,9 @@ export default function Dashboard({ leads }: DashboardProps) {
   }, [leads, dateRange, statusFilter, propertyFilter]);
 
   const totalLeads = filteredLeads.length;
-  const closedLeads = filteredLeads.filter(l => l.status === "Closed").length;
+  const closedLeads = filteredLeads.filter(l => l.status === "Won").length;
   const conversionRate = totalLeads ? ((closedLeads / totalLeads) * 100).toFixed(1) : "0.0";
+  const analyticsLoading = analytics === null && !analyticsError;
 
   const sourceData = React.useMemo(() => {
     const sources: Record<string, number> = {};
@@ -122,20 +134,21 @@ export default function Dashboard({ leads }: DashboardProps) {
       )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatsCard label="Total Leads" value={totalLeads} icon={Users} color="blue" trend="+12%" trendPositive={true} />
-        <StatsCard label="Conversion Rate" value={`${conversionRate}%`} icon={Target} color="emerald" trend="+2.4%" trendPositive={true} />
-        <StatsCard label="Site Visits" value={filteredLeads.filter(l => l.status === "Site Visit").length} icon={TrendingUp} color="purple" trend="-3%" trendPositive={false} />
-        <StatsCard label="Volume" value={totalLeads > 10 ? "High" : "Normal"} icon={PieChart} color="amber" />
+        <StatsCard label="Total Leads" value={analyticsLoading ? "..." : analytics?.totalLeads as number ?? totalLeads} icon={Users} color="blue" />
+        <StatsCard label="Conversion Rate" value={analyticsLoading ? "..." : `${analytics?.conversionRate as number ?? conversionRate}%`} icon={Target} color="emerald" />
+        <StatsCard label="Site Visits" value={analyticsLoading ? "..." : analytics?.siteVisits as number ?? filteredLeads.filter(l => l.status === "Site Visit").length} icon={TrendingUp} color="purple" />
+        <StatsCard label="Won Deals" value={analyticsLoading ? "..." : analytics?.wonDeals as number ?? closedLeads} icon={PieChart} color="amber" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="bg-white dark:bg-[#1e1e1e] p-6 rounded-[2rem] border border-[#1a1a1a]/5 dark:border-white/5 shadow-sm h-[320px] xl:h-[380px] flex flex-col transition-colors duration-300">
           <div className="mb-4">
             <h3 className="text-lg font-serif font-bold text-[#1a1a1a] dark:text-[#f5f2ed]">Lead Status Distribution</h3>
-            <p className="text-[10px] text-[#1a1a1a]/40 dark:text-[#f5f2ed]/40 font-medium uppercase tracking-[0.15em] mt-1">Real-time pipeline health</p>
+            <p className="text-[10px] text-[#1a1a1a]/40 dark:text-[#f5f2ed]/40 font-medium uppercase tracking-[0.15em] mt-1">Current pipeline health</p>
           </div>
+          {analyticsError && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600 dark:bg-red-500/10 dark:text-red-300">{analyticsError}</p>}
           <div className="flex-1 min-h-0">
-            <ResponsiveContainer width="100%" height="100%">
+            {analyticsLoading ? <div className="h-full grid place-items-center text-xs opacity-50">Loading pipeline data...</div> : <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240}>
               <BarChart data={statusData}>
                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={axisTickStyle} />
                 <Tooltip 
@@ -151,7 +164,7 @@ export default function Dashboard({ leads }: DashboardProps) {
                 />
                 <Bar dataKey="value" fill={isDark ? "#f5f2ed" : "#1a1a1a"} radius={[8, 8, 0, 0]} barSize={32} />
               </BarChart>
-            </ResponsiveContainer>
+            </ResponsiveContainer>}
           </div>
         </div>
 
@@ -161,7 +174,7 @@ export default function Dashboard({ leads }: DashboardProps) {
             <p className="text-[10px] text-[#1a1a1a]/40 dark:text-[#f5f2ed]/40 font-medium uppercase tracking-[0.15em] mt-1">ROI across channels</p>
           </div>
           <div className="flex-1 min-h-0">
-            <ResponsiveContainer width="100%" height="100%">
+            {analyticsLoading ? <div className="h-full grid place-items-center text-xs opacity-50">Loading source data...</div> : <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={240}>
               <RechartsPie>
                 <Pie
                   data={sourceData}
@@ -191,7 +204,7 @@ export default function Dashboard({ leads }: DashboardProps) {
                   formatter={(value) => <span style={{ color: isDark ? '#f5f2ed80' : '#1a1a1a80', fontSize: '9px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em' }}>{value}</span>}
                 />
               </RechartsPie>
-            </ResponsiveContainer>
+            </ResponsiveContainer>}
           </div>
         </div>
       </div>

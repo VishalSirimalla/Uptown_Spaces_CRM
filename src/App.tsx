@@ -1,8 +1,3 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import React from "react";
 import Sidebar from "./components/Sidebar";
 import Dashboard from "./components/Dashboard";
@@ -11,203 +6,58 @@ import LeadForm from "./components/LeadForm";
 import LeadDetail from "./components/LeadDetail";
 import Settings from "./components/Settings";
 import LoginPage from "./components/LoginPage";
-import { Lead, LeadStatus, LeadSource, PropertyType, Note } from "./types";
-
-// Mock Data Initializer
-const MOCK_LEADS: Lead[] = [
-  {
-    id: "1",
-    name: "Chetan Parse",
-    phone: "+91 9876543210",
-    email: "chetan@example.com",
-    budget: 75000000,
-    location: "Worli, Mumbai",
-    propertyType: PropertyType.BHK_3,
-    source: LeadSource.REFERRAL,
-    status: LeadStatus.SITE_VISIT,
-    createdAt: Date.now() - 86400000,
-    updatedAt: Date.now() - 3600000,
-    notes: [
-      {
-        id: "n1",
-        content: "High intent client. Interested in properties with sea view. Scheduled site visit for next Tuesday.",
-        author: "Agent",
-        createdAt: Date.now() - 3600000
-      }
-    ]
-  },
-  {
-    id: "2",
-    name: "Aparna Sharma",
-    phone: "+91 9988776655",
-    email: "aparna.s@luxuryestates.in",
-    budget: 120000000,
-    location: "Banjara Hills, Hyderabad",
-    propertyType: PropertyType.PENTHOUSE,
-    source: LeadSource.GOOGLE,
-    status: LeadStatus.NEW,
-    createdAt: Date.now() - 432000000,
-    updatedAt: Date.now() - 432000000,
-    notes: []
-  },
-  {
-    id: "3",
-    name: "Vikram Malhotra",
-    phone: "+91 9000100020",
-    email: "v.malhotra@corporate.com",
-    budget: 250000000,
-    location: "Golf Links, Delhi",
-    propertyType: PropertyType.VILLA,
-    source: LeadSource.FACEBOOK,
-    status: LeadStatus.CLOSED,
-    createdAt: Date.now() - 1296000000,
-    updatedAt: Date.now() - 259200000,
-    notes: [
-      {
-        id: "n2",
-        content: "Deal closed. Documents finalized and registration initiated.",
-        author: "Agent",
-        createdAt: Date.now() - 259200000
-      }
-    ]
-  }
-];
+import { Lead, LeadStatus } from "./types";
+import { api } from "./lib/api";
 
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = React.useState(false);
+  const [user, setUser] = React.useState<{ name: string; email: string; role: string } | null>(null);
+  const [authLoading, setAuthLoading] = React.useState(true);
   const [activeTab, setActiveTab] = React.useState("dashboard");
-  const [leads, setLeads] = React.useState<Lead[]>(() => {
-    const savedLeads = localStorage.getItem("uptown_leads");
-    return savedLeads ? JSON.parse(savedLeads) : MOCK_LEADS;
-  });
+  const [leads, setLeads] = React.useState<Lead[]>([]);
   const [showAddForm, setShowAddForm] = React.useState(false);
   const [selectedLead, setSelectedLead] = React.useState<Lead | null>(null);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState("");
+  const [notice, setNotice] = React.useState("");
 
-  React.useEffect(() => {
-    // Check if user was previously logged in
-    const auth = localStorage.getItem("uptown_auth");
-    if (auth === "true") {
-      setIsAuthenticated(true);
-    }
-    document.documentElement.classList.add("dark");
+  const loadLeads = React.useCallback(async () => {
+    setLoading(true); setError("");
+    try { setLeads(await api.leads()); } catch (err) { setError(err instanceof Error ? err.message : "Could not load leads."); }
+    finally { setLoading(false); }
   }, []);
-
+  React.useEffect(() => { document.documentElement.classList.add("dark"); }, []);
   React.useEffect(() => {
-    localStorage.setItem("uptown_leads", JSON.stringify(leads));
-  }, [leads]);
+    void api.me().then((response) => setUser(response.user)).catch(() => setUser(null)).finally(() => setAuthLoading(false));
+  }, []);
+  React.useEffect(() => { if (user) void loadLeads(); }, [user, loadLeads]);
 
-  React.useEffect(() => {
-    window.scrollTo(0, 0);
-  }, [isAuthenticated]);
-
-  const handleLogin = () => {
-    setIsAuthenticated(true);
-    localStorage.setItem("uptown_auth", "true");
+  const handleAddLead = async (data: Parameters<NonNullable<React.ComponentProps<typeof LeadForm>["onSubmit"]>>[0]) => {
+    try { const created = await api.createLead(data); setLeads((current) => [created, ...current]); setShowAddForm(false); setActiveTab("leads"); setNotice("Lead created successfully."); }
+    catch (err) { setError(err instanceof Error ? err.message : "Could not create lead."); }
   };
-
-  const handleLogout = () => {
-    setIsAuthenticated(false);
-    localStorage.removeItem("uptown_auth");
+  const handleUpdateLeadStatus = async (id: string, status: LeadStatus) => {
+    try { const updated = await api.updateLead(id, { status }); setLeads((current) => current.map((lead) => lead.id === id ? updated : lead)); setSelectedLead(updated); setNotice("Pipeline stage updated."); }
+    catch (err) { setError(err instanceof Error ? err.message : "Could not update status."); }
   };
-
-  const handleAddLead = (data: any) => {
-    const newLead: Lead = {
-      ...data,
-      status: LeadStatus.NEW,
-      id: Math.random().toString(36).substr(2, 9),
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      notes: []
-    };
-    setLeads([newLead, ...leads]);
-    setShowAddForm(false);
-    setActiveTab("leads");
+  const handleAddNote = async (leadId: string, content: string) => {
+    try { const updated = await api.updateLead(leadId, { addNote: { content, author: user?.name || "Agent" } }); setLeads((current) => current.map((lead) => lead.id === leadId ? updated : lead)); setSelectedLead(updated); setNotice("Note saved."); }
+    catch (err) { setError(err instanceof Error ? err.message : "Could not save note."); }
   };
+  const handleLogout = async () => { await api.logout().catch(() => undefined); setUser(null); setLeads([]); };
+  const handleTabChange = (tab: string) => tab === "add" ? setShowAddForm(true) : setActiveTab(tab);
 
-  const handleUpdateLeadStatus = (id: string, status: LeadStatus) => {
-    setLeads(leads.map(l => l.id === id ? { ...l, status, updatedAt: Date.now() } : l));
-    if (selectedLead?.id === id) {
-      setSelectedLead(prev => prev ? { ...prev, status, updatedAt: Date.now() } : null);
-    }
-  };
-
-  const handleAddNote = (leadId: string, content: string) => {
-    const newNote: Note = {
-      id: Math.random().toString(36).substr(2, 9),
-      content,
-      author: "Agent",
-      createdAt: Date.now()
-    };
-    setLeads(leads.map(l => l.id === leadId ? { ...l, notes: [newNote, ...l.notes], updatedAt: Date.now() } : l));
-    if (selectedLead?.id === leadId) {
-      setSelectedLead(prev => prev ? { ...prev, notes: [newNote, ...prev.notes], updatedAt: Date.now() } : null);
-    }
-  };
-
-  const handleTabChange = (tab: string) => {
-    if (tab === "add") {
-      setShowAddForm(true);
-    } else {
-      setActiveTab(tab);
-    }
-  };
-
-  if (!isAuthenticated) {
-    return <LoginPage onLogin={handleLogin} />;
-  }
-
-  return (
-    <div className="flex h-screen bg-[#fafaf9] dark:bg-[#0c0c0c] text-[#1a1a1a] dark:text-[#f5f2ed] transition-colors duration-500 overflow-hidden">
-      <Sidebar 
-        activeTab={activeTab} 
-        setActiveTab={handleTabChange} 
-        onLogout={handleLogout}
-      />
-      
-      <main className="flex-1 overflow-hidden h-screen bg-[#fafaf9] dark:bg-[#0c0c0c] flex flex-col">
-        {activeTab === "dashboard" && (
-          <div className="flex-1 overflow-y-auto p-8 lg:p-12">
-            <Dashboard leads={leads} />
-          </div>
-        )}
-        {activeTab === "leads" && (
-          <div className="flex-1 overflow-hidden flex flex-col p-8 lg:p-12">
-            <div className="flex items-center justify-between mb-8">
-              <div>
-                <h2 className="text-4xl font-serif font-bold text-[#1a1a1a] dark:text-[#f5f2ed] tracking-tight transition-colors">Active Pipeline</h2>
-                <p className="text-sm text-[#1a1a1a]/60 dark:text-[#f5f2ed]/60 font-medium tracking-wide">Manage and track your high-intent potential clients</p>
-              </div>
-              <button 
-                onClick={() => setShowAddForm(true)}
-                className="px-6 py-3 bg-[#1a1a1a] dark:bg-[#f5f2ed] text-white dark:text-[#1a1a1a] rounded-2xl text-xs font-bold uppercase tracking-[0.2em] shadow-xl hover:scale-105 active:scale-95 transition-all"
-              >
-                Register New Lead
-              </button>
-            </div>
-            <div className="flex-1 overflow-hidden">
-              <LeadTable leads={leads} onSelectLead={setSelectedLead} />
-            </div>
-          </div>
-        )}
-        {activeTab === "settings" && (
-          <div className="flex-1 overflow-y-auto p-8 lg:p-12">
-            <Settings />
-          </div>
-        )}
-      </main>
-
-      {showAddForm && (
-        <LeadForm onSubmit={handleAddLead} onClose={() => setShowAddForm(false)} />
-      )}
-
-      {selectedLead && (
-        <LeadDetail 
-          lead={selectedLead} 
-          onUpdateStatus={handleUpdateLeadStatus} 
-          onAddNote={handleAddNote}
-          onClose={() => setSelectedLead(null)} 
-        />
-      )}
-    </div>
-  );
+  if (authLoading) return <div className="min-h-screen grid place-items-center bg-[#0c0c0c] text-[#f5f2ed]">Restoring session...</div>;
+  if (!user) return <LoginPage onLogin={setUser} />;
+  return <div className="flex h-screen bg-[#fafaf9] dark:bg-[#0c0c0c] text-[#1a1a1a] dark:text-[#f5f2ed] overflow-hidden">
+    <Sidebar activeTab={activeTab} setActiveTab={handleTabChange} onLogout={handleLogout} />
+    <main className="flex-1 overflow-hidden h-screen bg-[#fafaf9] dark:bg-[#0c0c0c] flex flex-col">
+      {notice && <button onClick={() => setNotice("")} className="absolute top-5 right-8 z-40 bg-emerald-600 text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-lg">{notice}</button>}
+      {error && <button onClick={() => setError("")} className="absolute top-5 right-8 z-40 bg-red-600 text-white px-4 py-2 rounded-xl text-xs font-semibold shadow-lg max-w-sm text-left">{error}</button>}
+      {activeTab === "dashboard" && <div className="flex-1 overflow-y-auto p-8 lg:p-12"><Dashboard leads={leads} /></div>}
+      {activeTab === "leads" && <div className="flex-1 overflow-hidden flex flex-col p-8 lg:p-12"><div className="flex items-center justify-between mb-8"><div><h2 className="text-4xl font-serif font-bold">Active Pipeline</h2><p className="text-sm opacity-60">Manage and track your potential clients</p></div><button onClick={() => setShowAddForm(true)} className="px-6 py-3 bg-[#1a1a1a] dark:bg-[#f5f2ed] text-white dark:text-[#1a1a1a] rounded-2xl text-xs font-bold uppercase tracking-[0.2em]">Register New Lead</button></div>{loading ? <div className="flex-1 grid place-items-center opacity-50">Loading leads...</div> : <div className="flex-1 overflow-hidden"><LeadTable leads={leads} onSelectLead={setSelectedLead} /></div>}</div>}
+      {activeTab === "settings" && <div className="flex-1 overflow-y-auto p-8 lg:p-12"><Settings /></div>}
+    </main>
+    {showAddForm && <LeadForm onSubmit={handleAddLead} onClose={() => setShowAddForm(false)} />}
+    {selectedLead && <LeadDetail lead={selectedLead} onUpdateStatus={handleUpdateLeadStatus} onAddNote={handleAddNote} onClose={() => setSelectedLead(null)} />}
+  </div>;
 }

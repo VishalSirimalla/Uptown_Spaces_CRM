@@ -21,8 +21,8 @@ export default function LeadTable({ leads, onSelectLead }: LeadTableProps) {
   };
 
   const filteredLeads = leads.filter((lead) => {
-    const matchesSearch = lead.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                         lead.phone.includes(searchTerm);
+    const term = searchTerm.toLowerCase();
+    const matchesSearch = lead.name.toLowerCase().includes(term) || lead.phone.toLowerCase().includes(term) || lead.email.toLowerCase().includes(term) || lead.location.toLowerCase().includes(term);
     const matchesStatus = statusFilter === "All" || lead.status === statusFilter;
     const matchesSource = sourceFilter === "All" || lead.source === sourceFilter;
     return matchesSearch && matchesStatus && matchesSource;
@@ -36,7 +36,7 @@ export default function LeadTable({ leads, onSelectLead }: LeadTableProps) {
           <input
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search leads by name or phone..."
+            placeholder="Search name, email, phone, or location..."
             className="w-full pl-11 pr-4 py-3 rounded-2xl bg-[#1a1a1a]/5 dark:bg-white/5 border-none focus:ring-1 focus:ring-[#1a1a1a]/10 dark:focus:ring-white/10 outline-none text-sm transition-all shadow-inner text-[#1a1a1a] dark:text-[#f5f2ed] placeholder:text-[#1a1a1a]/30 dark:placeholder:text-[#f5f2ed]/30"
           />
         </div>
@@ -115,7 +115,7 @@ export default function LeadTable({ leads, onSelectLead }: LeadTableProps) {
                   <span className="text-xs font-semibold text-[#1a1a1a]/60 dark:text-[#f5f2ed]/60 uppercase tracking-wider">{lead.source}</span>
                 </td>
                 <td className="py-5 px-6 text-right">
-                  <button className="p-2 hover:bg-[#1a1a1a]/5 dark:hover:bg-white/5 rounded-full opacity-0 group-hover:opacity-100 transition-all text-[#1a1a1a] dark:text-[#f5f2ed]">
+                  <button aria-label={`Open ${lead.name}`} onClick={(event) => { event.stopPropagation(); onSelectLead(lead); }} className="p-2 hover:bg-[#1a1a1a]/5 dark:hover:bg-white/5 rounded-full opacity-0 group-hover:opacity-100 transition-all text-[#1a1a1a] dark:text-[#f5f2ed]">
                     <MoreVertical className="w-4 h-4" />
                   </button>
                 </td>

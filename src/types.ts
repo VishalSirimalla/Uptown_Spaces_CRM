@@ -1,8 +1,11 @@
 export enum LeadStatus {
   NEW = "New",
   CONTACTED = "Contacted",
+  QUALIFIED = "Qualified",
   SITE_VISIT = "Site Visit",
-  CLOSED = "Closed",
+  NEGOTIATION = "Negotiation",
+  WON = "Won",
+  LOST = "Lost",
 }
 
 export enum LeadSource {
@@ -42,6 +45,7 @@ export interface Lead {
   createdAt: number;
   updatedAt: number;
   notes: Note[];
+  assignedAgent?: { id: string; name: string; email: string; role: string } | string | null;
 }
 
 export interface DashboardStats {

@@ -7,7 +7,7 @@ import { SOURCE_OPTIONS, PROPERTY_TYPE_OPTIONS } from "../constants";
 import { X } from "lucide-react";
 
 interface LeadFormProps {
-  onSubmit: (data: LeadFormData) => void;
+  onSubmit: (data: LeadFormData) => void | Promise<void>;
   onClose: () => void;
 }
 
